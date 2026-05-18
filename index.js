@@ -1,13 +1,17 @@
 const express = require('express')
-const app = express()
+const dotenv = require('dotenv') 
+const cors = require('cors');
 const { MongoClient, ServerApiVersion } = require('mongodb');
-const port = 3000
 
-app.get('/', (req, res) => {
-  res.send('Hello World!')
-})
+dotenv.config();
+const app = express()
 
-const uri = "mongodb+srv://MediQueue:8XJpcnyAWUcw9pzp@cluster0.zlrikti.mongodb.net/?appName=cluster0";
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+const port = process.env.PORT || 5000;
+const uri = process.env.MONGODB_PORT;
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -17,20 +21,44 @@ const client = new MongoClient(uri, {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
-})
-
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
+    
     await client.connect();
-    // Send a ping to confirm a successful connection
+
+    const db = client.db('Medi-Queue')
+    const tutorCollection = db.collection('Tutors')
+    
+    
+    app.get('/tutor', async(req, res)=>{
+      const result = await tutorCollection.find().toArray();
+      res.json(result);
+    });
+
+    app.post('/tutor', async(req, res) => {
+      const newTutor = req.body;
+      const result = await tutorCollection.insertOne(newTutor);
+      res.status(201).json(result);
+    });
+
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
+
+  } catch (error) {
+    console.error("Database connection error:", error);
   } finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
+    
+    // await client.close();
   }
 }
 run().catch(console.dir);
+
+
+app.get('/', (req, res) => {
+  res.send('MediQueue Server is running fine')
+})
+
+
+app.listen(port, () => {
+  console.log(`MediQueue app listening on port ${port}`)
+})

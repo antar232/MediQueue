@@ -9,7 +9,11 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+//app.use(cors());
+app.use(cors({
+  origin: `${process.env.CLIENT_URL}`,
+  credentials: true
+}));
 app.use(express.json());
 
 const port = process.env.PORT || 5000;
@@ -22,23 +26,26 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
-const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`));
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+);
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   console.log("Received Auth Header:", authHeader);
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res
-      .status(401)
-      .send({
-        error: true,
-        message: "Unauthorized access: Token missing or invalid format",
-      });
+    return res.status(401).send({
+      error: true,
+      message: "Unauthorized access: Token missing or invalid format",
+    });
   }
 
   const token = authHeader.split(" ")[1];
   try {
-    const { payload } = await jwtVerify(token, JWKS);
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: `${process.env.CLIENT_URL}`,
+      audience: `${process.env.CLIENT_URL}`,
+    });
     req.user = payload;
     next();
   } catch (error) {
@@ -187,7 +194,6 @@ async function run() {
     app.delete("/api/bookings/:id", async (req, res) => {
       const { id } = req.params;
       try {
-        
         const booking = await bookingCollection.findOne({
           _id: new ObjectId(id),
         });
@@ -195,16 +201,14 @@ async function run() {
           return res.status(404).json({ message: "Booking not found" });
         }
 
-        
         const result = await bookingCollection.deleteOne({
           _id: new ObjectId(id),
         });
 
-        
         if (result.deletedCount > 0) {
           await tutorCollection.updateOne(
             { _id: new ObjectId(booking.tutorId) },
-            { $inc: { totalSlots: 1 } }, 
+            { $inc: { totalSlots: 1 } },
           );
           res.json({
             success: true,

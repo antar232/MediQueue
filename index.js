@@ -257,6 +257,13 @@ app.get("/", (req, res) => {
   res.send("MediQueue Server is running fine");
 });
 
-app.listen(port, () => {
-  console.log(`MediQueue app listening on port ${port}`);
-});
+// app.listen(port, () => {
+//   console.log(`MediQueue app listening on port ${port}`);
+// });
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`MediQueue app listening on port ${port}`);
+  });
+}
+
+module.exports = app;

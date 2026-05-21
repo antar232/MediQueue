@@ -2,6 +2,8 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
+const { error } = require("cros/common/logger");
 
 dotenv.config();
 const app = express();
@@ -20,10 +22,34 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`));
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  console.log("Received Auth Header:", authHeader);
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res
+      .status(401)
+      .send({
+        error: true,
+        message: "Unauthorized access: Token missing or invalid format",
+      });
+  }
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload;
+    next();
+  } catch (error) {
+    console.error("JWT Verification Error:", error.message);
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
 
 async function run() {
   try {
-    await client.connect();
+    //await client.connect();
 
     const db = client.db("Medi-Queue");
     const tutorCollection = db.collection("Tutors");
@@ -36,7 +62,6 @@ async function run() {
       res.json(result);
     });
 
-    
     app.post("/tutors", async (req, res) => {
       const newTutor = req.body;
       try {
@@ -47,7 +72,7 @@ async function run() {
       }
     });
 
-    app.get("/tutors/:id", async (req, res) => {
+    app.get("/tutors/:id", verifyToken, async (req, res) => {
       try {
         const { id } = req.params;
 
@@ -68,7 +93,6 @@ async function run() {
       }
     });
 
-    
     app.put("/tutors/:id", async (req, res) => {
       const { id } = req.params;
       const updateData = req.body;
@@ -160,6 +184,40 @@ async function run() {
         res.status(500).json({ message: "Internal Server Error" });
       }
     });
+    app.delete("/api/bookings/:id", async (req, res) => {
+      const { id } = req.params;
+      try {
+        
+        const booking = await bookingCollection.findOne({
+          _id: new ObjectId(id),
+        });
+        if (!booking) {
+          return res.status(404).json({ message: "Booking not found" });
+        }
+
+        
+        const result = await bookingCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        
+        if (result.deletedCount > 0) {
+          await tutorCollection.updateOne(
+            { _id: new ObjectId(booking.tutorId) },
+            { $inc: { totalSlots: 1 } }, 
+          );
+          res.json({
+            success: true,
+            message: "Booking cancelled successfully",
+          });
+        } else {
+          res.status(400).json({ success: false, message: "Failed to delete" });
+        }
+      } catch (error) {
+        console.error("Delete error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+      }
+    });
 
     app.get("/api/bookings", async (req, res) => {
       const { email } = req.query;
@@ -171,7 +229,7 @@ async function run() {
       res.json(result);
     });
 
-    await client.db("admin").command({ ping: 1 });
+    //await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );

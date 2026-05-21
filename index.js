@@ -18,7 +18,8 @@ app.use(express.json());
 
 // MongoDB Client
 const client = new MongoClient(process.env.MONGODB_URL, {
-    serverApi: { version: ServerApiVersion.v1, strict: true },
+    serverApi: { version: ServerApiVersion.v1, strict: true},
+    family: 4,
 });
 
 // Database Connection Helper

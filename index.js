@@ -10,23 +10,28 @@ const app = express();
 
 // Middleware
 //app.use(cors());
-app.use(cors({
-  origin: `${process.env.CLIENT_URL}`,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 const port = process.env.PORT || 5000;
-const uri = process.env.MONGODB_URL;
-
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  },
+const client = new MongoClient(process.env.MONGODB_URL, {
+  serverApi: { version: ServerApiVersion.v1, strict: true },
 });
+
+let cachedDb = null;
+async function getDb() {
+  if (cachedDb) return cachedDb;
+  await client.connect();
+  cachedDb = client.db("Medi-Queue");
+  return cachedDb;
+}
+
 const JWKS = createRemoteJWKSet(
   new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
 );
@@ -66,8 +71,10 @@ async function run() {
 
     // ==================== TUTOR RAUTES ====================
     app.get("/tutors", async (req, res) => {
-      const result = await tutorCollection.find().toArray();
+      const db = await getDb();
+      const result = await db.collection("Tutors").find().toArray();
       res.json(result);
+      
     });
 
     app.post("/tutors", async (req, res) => {

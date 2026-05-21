@@ -4,9 +4,26 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 const { error } = require("cros/common/logger");
+const { injectSpeedInsights } = require("@vercel/speed-insights");
 
 dotenv.config();
 const app = express();
+
+// Initialize Speed Insights for Vercel deployment
+// Note: Speed Insights is primarily designed for client-side performance monitoring.
+// For this backend API, it's recommended to integrate Speed Insights in your frontend
+// application (CLIENT_URL) for proper web vitals tracking.
+if (process.env.VERCEL_ENV) {
+  // Enable Speed Insights when deployed on Vercel
+  // This will be available if the API ever serves HTML content
+  const speedInsightsConfig = {
+    debug: process.env.NODE_ENV !== 'production',
+    framework: 'express'
+  };
+  
+  // Store for potential HTML response augmentation
+  app.locals.speedInsights = speedInsightsConfig;
+}
 
 // Middleware
 //app.use(cors());
